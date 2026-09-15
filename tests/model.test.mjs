@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {freshState,start,pause,remaining,addRecord,undoRecord,snooze,configure,markDue,todaysRecords,normalize,minute} from '../dist/model.js';
+const now=new Date(2026,8,15,23,59,40).getTime();
+test('pause/resume retains remaining time and expiry fires only once',()=>{const s=freshState();start(s,now);pause(s,now+2*minute);assert.equal(remaining(s,now+20*minute),43*minute);start(s,now+20*minute);assert.equal(s.timer.dueAt,now+63*minute);assert.equal(markDue(s,now+64*minute),true);assert.equal(markDue(s,now+65*minute),false);snooze(s,now+65*minute);assert.equal(s.timer.dueAt,now+75*minute);});
+test('record resets active countdown, undo restores original deadline',()=>{const s=freshState();start(s,now);const due=s.timer.dueAt,id=addRecord(s,now+minute);assert.equal(s.timer.dueAt,due+minute);undoRecord(s,id);assert.equal(s.timer.dueAt,due);assert.equal(s.records.length,0);});
+test('undo cannot override a newer pause or changed interval',()=>{const s=freshState();start(s,now);const id=addRecord(s,now+minute);pause(s,now+2*minute);undoRecord(s,id);assert.equal(s.timer.mode,'paused');assert.equal(s.timer.remainingMs,44*minute);});
+test('midnight starts a fresh journal without losing history',()=>{const s=freshState();addRecord(s,now);addRecord(s,now+minute);assert.equal(todaysRecords(s,now).length,1);assert.equal(todaysRecords(s,now+minute).length,1);assert.equal(new Set(s.records.map(r=>r.day)).size,2);});
+test('bad settings fail without mutation, paused records keep timer paused',()=>{const s=freshState(),before=JSON.stringify(s);assert.throws(()=>configure(s,{interval:0},now));assert.throws(()=>snooze(s,now));assert.equal(JSON.stringify(s),before);start(s,now);pause(s,now+minute);addRecord(s,now+2*minute);assert.equal(s.timer.mode,'paused');assert.equal(s.timer.remainingMs,45*minute);assert.equal(s.timer.dueAt,null);});
+test('saved state round-trip keeps records and timer, invalid data is safe',()=>{const s=freshState();start(s,now);addRecord(s,now+minute);assert.deepEqual(normalize(JSON.parse(JSON.stringify(s))),s);assert.deepEqual(normalize({}),freshState());});
