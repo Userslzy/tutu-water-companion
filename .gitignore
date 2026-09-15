@@ -1,0 +1,6 @@
+.DS_Store
+.sites-runtime/
+desktop/output/
+__pycache__/
+.github-publish/
+.openai/
